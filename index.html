@@ -53,8 +53,12 @@ header{position:sticky;top:0;z-index:100;background:var(--s0);border-bottom:1px 
 /* LAYOUT */
 .app{display:grid;grid-template-columns:1fr 350px;min-height:calc(100vh - 58px);}
 .pane-l{padding:1.75rem 2rem 4rem;border-right:1px solid var(--bdr);display:flex;flex-direction:column;gap:1.5rem;}
-.pane-r{padding:1.75rem 1.5rem;display:flex;flex-direction:column;gap:1.25rem;position:sticky;top:58px;height:calc(100vh - 58px);overflow-y:auto;background:var(--s1);}
-.pane-r::-webkit-scrollbar{width:4px;}
+.pane-r{display:flex;flex-direction:column;position:sticky;top:58px;height:calc(100vh - 58px);background:var(--s1);border-left:1px solid var(--bdr);overflow:hidden;}
+.pane-r-top{padding:1.25rem 1.5rem;flex-shrink:0;}
+.pane-r-bottom{flex:1;overflow-y:auto;padding:0 1.5rem 2rem;border-top:1px solid var(--bdr);}
+.pane-r-bottom::-webkit-scrollbar{width:4px;}
+.pane-r-bottom::-webkit-scrollbar-track{background:var(--s2);}
+.pane-r-bottom::-webkit-scrollbar-thumb{background:var(--bdr2);border-radius:3px;}
 
 /* KPIS */
 .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--bdr);border:1px solid var(--bdr);border-radius:var(--r2);overflow:hidden;}
@@ -231,35 +235,41 @@ select option{background:var(--s0);color:var(--ink);}
 
   <div class="pane-r">
 
-    <div class="section">
-      <div class="type-sw">
-        <button class="tsw-btn inc on" id="tab-inc" onclick="setType('income')">+ Revenu</button>
-        <button class="tsw-btn exp" id="tab-exp" onclick="setType('expense')">− Dépense</button>
-      </div>
-      <div class="form-body">
-        <div class="frow">
-          <div class="field"><label>Montant (€)</label><input type="number" id="f-amt" placeholder="0.00" min="0" step="0.01"></div>
-          <div class="field"><label>Date</label><input type="date" id="f-date"></div>
+    <!-- Formulaire — fixe, ne scroll pas -->
+    <div class="pane-r-top">
+      <div class="section">
+        <div class="type-sw">
+          <button class="tsw-btn inc on" id="tab-inc" onclick="setType('income')">+ Revenu</button>
+          <button class="tsw-btn exp" id="tab-exp" onclick="setType('expense')">− Dépense</button>
         </div>
-        <div class="field"><label>Description</label><input type="text" id="f-desc" placeholder="Loyer, Salaire…"></div>
-        <div class="field"><label>Catégorie</label><select id="f-cat"><option value="">— Catégorie —</option></select></div>
-        <button class="btn-add" onclick="addTx()">Ajouter</button>
+        <div class="form-body">
+          <div class="frow">
+            <div class="field"><label>Montant (€)</label><input type="number" id="f-amt" placeholder="0.00" min="0" step="0.01"></div>
+            <div class="field"><label>Date</label><input type="date" id="f-date"></div>
+          </div>
+          <div class="field"><label>Description</label><input type="text" id="f-desc" placeholder="Loyer, Salaire…"></div>
+          <div class="field"><label>Catégorie</label><select id="f-cat"><option value="">— Catégorie —</option></select></div>
+          <button class="btn-add" onclick="addTx()">Ajouter</button>
+        </div>
       </div>
     </div>
 
-    <div class="section">
-      <div class="sec-head"><span class="sec-title">Répartition dépenses</span></div>
-      <div class="pie-wrap">
-        <div class="pie-ring">
-          <canvas id="pie-canvas" width="180" height="180"></canvas>
-          <div class="pie-center" id="pie-center">
-            <span class="pie-total-lbl">Dépenses</span>
-            <span class="pie-total-val" id="pie-total">0 €</span>
+    <!-- Camembert + légende — scrollable -->
+    <div class="pane-r-bottom">
+      <div class="section">
+        <div class="sec-head"><span class="sec-title">Répartition dépenses</span></div>
+        <div class="pie-wrap">
+          <div class="pie-ring">
+            <canvas id="pie-canvas" width="200" height="200"></canvas>
+            <div class="pie-center" id="pie-center">
+              <span class="pie-total-lbl">Dépenses</span>
+              <span class="pie-total-val" id="pie-total">0 €</span>
+            </div>
+            <div class="pie-tooltip" id="pie-tooltip"></div>
           </div>
-          <div class="pie-tooltip" id="pie-tooltip"></div>
         </div>
+        <ul class="cat-list" id="cat-list"><li class="empty" style="padding:1rem 0">Aucune dépense</li></ul>
       </div>
-      <ul class="cat-list" id="cat-list"><li class="empty" style="padding:1rem 0">Aucune dépense</li></ul>
     </div>
 
   </div>
