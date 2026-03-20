@@ -128,8 +128,17 @@ select option{background:var(--s0);color:var(--ink);}
 .btn-add:hover{background:#3a3630;}
 .btn-add:active{transform:scale(.98);}
 
+/* PIE */
+.pie-wrap{padding:1.25rem 1.4rem 0.5rem;display:flex;flex-direction:column;align-items:center;}
+.pie-ring{position:relative;display:inline-flex;align-items:center;justify-content:center;}
+#pie-canvas{display:block;}
+.pie-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;}
+.pie-total-lbl{font-family:'Inter',sans-serif;font-size:.58rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);}
+.pie-total-val{font-family:'Lora',serif;font-size:1.05rem;font-weight:600;color:var(--ink);line-height:1.3;}
+.pie-tooltip{position:absolute;background:var(--ink);color:var(--s0);padding:5px 10px;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:.72rem;font-weight:500;pointer-events:none;opacity:0;transition:opacity .15s;white-space:nowrap;z-index:10;top:0;left:0;}
+
 /* CATS */
-.cat-list{list-style:none;padding:.6rem 0;}
+.cat-list{list-style:none;padding:.5rem 0;}
 .cat-row{display:flex;align-items:center;gap:9px;padding:5px 1.1rem;}
 .cat-pip{width:5px;height:5px;border-radius:50%;flex-shrink:0;}
 .cat-name{flex:1;font-size:.8rem;color:var(--sub);font-family:'Inter',sans-serif;}
@@ -240,6 +249,16 @@ select option{background:var(--s0);color:var(--ink);}
 
     <div class="section">
       <div class="sec-head"><span class="sec-title">Répartition dépenses</span></div>
+      <div class="pie-wrap">
+        <div class="pie-ring">
+          <canvas id="pie-canvas" width="180" height="180"></canvas>
+          <div class="pie-center" id="pie-center">
+            <span class="pie-total-lbl">Dépenses</span>
+            <span class="pie-total-val" id="pie-total">0 €</span>
+          </div>
+          <div class="pie-tooltip" id="pie-tooltip"></div>
+        </div>
+      </div>
       <ul class="cat-list" id="cat-list"><li class="empty" style="padding:1rem 0">Aucune dépense</li></ul>
     </div>
 
@@ -344,16 +363,93 @@ function renderList(txs){
 
 function renderCats(txs){
   const ul=document.getElementById('cat-list');
-  const exp=txs.filter(t=>t.type==='expense');
-  const total=exp.reduce((s,t)=>s+t.amount,0);
-  const bycat={};exp.forEach(t=>{const c=t.cat||'Autres';bycat[c]=(bycat[c]||0)+t.amount;});
+  const exps=txs.filter(t=>t.type==='expense');
+  const total=exps.reduce((s,t)=>s+t.amount,0);
+  const bycat={};exps.forEach(t=>{const c=t.cat||'Autres';bycat[c]=(bycat[c]||0)+t.amount;});
   const sorted=Object.entries(bycat).sort((a,b)=>b[1]-a[1]);
+
+  // Pie
+  document.getElementById('pie-total').textContent=total>0?eur(total):'0 €';
+  renderPie(sorted,total);
+
   if(!sorted.length){ul.innerHTML=`<li class="empty" style="padding:1rem 0">Aucune dépense</li>`;return;}
   ul.innerHTML=sorted.map(([c,a],i)=>{
     const pct=total>0?Math.round(a/total*100):0;
     const col=PAL[i%PAL.length];
     return`<li class="cat-row"><div class="cat-pip" style="background:${col}"></div><span class="cat-name">${esc(c)}</span><div class="cat-bar-bg"><div class="cat-bar-fill" style="width:${pct}%;background:${col}"></div></div><span class="cat-amt">${eur(a)}</span></li>`;
   }).join('');
+}
+
+function renderPie(sorted,total){
+  const cv=document.getElementById('pie-canvas');
+  const ctx=cv.getContext('2d');
+  const dpr=window.devicePixelRatio||1;
+  const SIZE=190;
+  cv.width=SIZE*dpr; cv.height=SIZE*dpr;
+  cv.style.width=SIZE+'px'; cv.style.height=SIZE+'px';
+  ctx.scale(dpr,dpr);
+
+  const cx=SIZE/2, cy=SIZE/2, R=86, r=52, gap=0.03;
+  ctx.clearRect(0,0,SIZE,SIZE);
+
+  if(!total){
+    ctx.beginPath();
+    ctx.arc(cx,cy,R,0,Math.PI*2);
+    ctx.arc(cx,cy,r,0,Math.PI*2,true);
+    ctx.fillStyle='#f0ede8';
+    ctx.fill();
+    return;
+  }
+
+  let angle=-Math.PI/2;
+  const segments=[];
+  sorted.forEach(([cat,amt],i)=>{
+    const slice=(amt/total)*Math.PI*2;
+    const start=angle+gap/2;
+    const end=angle+slice-gap/2;
+    const col=PAL[i%PAL.length];
+    segments.push({start:angle,end:angle+slice,drawStart:start,drawEnd:end,col,cat,amt,pct:Math.round(amt/total*100)});
+    angle+=slice;
+  });
+
+  const draw=(hovIdx=-1)=>{
+    ctx.clearRect(0,0,SIZE,SIZE);
+    segments.forEach((seg,i)=>{
+      const hov=i===hovIdx;
+      const rr=hov?R+5:R;
+      const ri=hov?r-2:r;
+      ctx.beginPath();
+      ctx.arc(cx,cy,rr,seg.drawStart,seg.drawEnd);
+      ctx.arc(cx,cy,ri,seg.drawEnd,seg.drawStart,true);
+      ctx.closePath();
+      ctx.fillStyle=seg.col;
+      ctx.globalAlpha=hov?1:0.88;
+      ctx.fill();
+      ctx.globalAlpha=1;
+    });
+  };
+  draw();
+
+  const tooltip=document.getElementById('pie-tooltip');
+  cv.onmousemove=e=>{
+    const rect=cv.getBoundingClientRect();
+    const mx=e.clientX-rect.left-cx, my=e.clientY-rect.top-cy;
+    const dist=Math.sqrt(mx*mx+my*my);
+    if(dist<r||dist>R+6){tooltip.style.opacity=0;draw();return;}
+    let a=Math.atan2(my,mx);
+    if(a<-Math.PI/2) a+=Math.PI*2;
+    const idx=segments.findIndex(s=>a>=s.start&&a<s.end);
+    if(idx<0){tooltip.style.opacity=0;draw();return;}
+    draw(idx);
+    const seg=segments[idx];
+    tooltip.textContent=`${seg.cat} · ${seg.pct}% — ${eur(seg.amt)}`;
+    tooltip.style.opacity=1;
+    const tx=e.clientX-rect.left, ty=e.clientY-rect.top;
+    const tw=tooltip.scrollWidth+4;
+    tooltip.style.left=Math.max(0,Math.min(tx+12,SIZE-tw))+'px';
+    tooltip.style.top=Math.max(0,ty-32)+'px';
+  };
+  cv.onmouseleave=()=>{tooltip.style.opacity=0;draw();};
 }
 
 function renderChart(){
@@ -498,7 +594,7 @@ function exportPDF(){
   toast('PDF généré','ok');
 }
 
-window.addEventListener('resize',renderChart);
+window.addEventListener('resize',()=>{renderChart();const txs=load();const exps=txs.filter(t=>t.type==='expense');const total=exps.reduce((s,t)=>s+t.amount,0);const bycat={};exps.forEach(t=>{const c=t.cat||'Autres';bycat[c]=(bycat[c]||0)+t.amount;});renderPie(Object.entries(bycat).sort((a,b)=>b[1]-a[1]),total);});
 const _n=new Date();
 setType('income');
 goMonth(_n.getFullYear(),_n.getMonth());
